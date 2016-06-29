@@ -29,7 +29,6 @@ class HostnameValidator():
                                             (?:[A-Za-z0-9][A-Za-z0-9-]*)
                                             (?:[.][A-Za-z0-9][A-Za-z0-9-]*)*(?:[.A-Za-z0-9])$"""
 
-                                            #^(?!.*\.$)                                              # trailing . are not valid
 
         #self.ipv4_constraint_regex = r"""^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""                      # IP validation, fails on 127.1 http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
         self.ipv4_constraint_regex = r"""                                                                                                                 # add max ipv4 length 3*4+3*1 = 15
@@ -56,7 +55,7 @@ class HostnameValidator():
                                         ([0-9a-fA-F]{1,4}:){1,4}:
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
                                         (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])           # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
-                                        )"""
+                                        )"""                                               # 2001:db8:0:0:0:0:FFFF:192.168.0.5 #fails this regex
 
         self.all_constraint_regex = self.name_constraint_regex + '|' + self.ipv4_constraint_regex + '|' + self.ipv6_constraint_regex
         self.ip_constraint_regex = self.ipv4_constraint_regex + '|' + self.ipv6_constraint_regex
@@ -89,69 +88,70 @@ def test_hostname(regex, name):
 def get_test_vectors():
     test_vectors = []
 
-    # valid names that pass:
-    #test_vectors.append(('lwn.net', True, "standard domain"))
-    test_vectors.append(('lwn.net', {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain"))
-    test_vectors.append(('net', {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain without a ."))
-    test_vectors.append(('3.net', {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain starting with a number"))
-    test_vectors.append(('LWN.NET', {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain uppercase"))
-    test_vectors.append(('l-w-n.n-e-t', {'name':True, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
+    # valid names that only match the name regex:
+    test_vectors.append(('lwn.net',           {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain"))
+    test_vectors.append(('net',               {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain without a ."))
+    test_vectors.append(('3.net',             {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain starting with a number"))
+    test_vectors.append(('LWN.NET',           {'name':True, 'ipv4':False, 'ipv6':False}, "standard domain uppercase"))
+    test_vectors.append(('l-w-n.n-e-t',       {'name':True, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
     test_vectors.append(('l-w-n.XN--1QQW23A', {'name':True, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
-    test_vectors.append(('l'*59+'.net', {'name':True, 'ipv4':False, 'ipv6':False}, "valid (63 max) name length")) # 59 + 4 = 63
+    test_vectors.append(('l'*59+'.net',       {'name':True, 'ipv4':False, 'ipv6':False}, "valid (63 max) name length")) # 59 + 4 = 63
+    test_vectors.append(('l'*251+'.net',      {'name':True, 'ipv4':False, 'ipv6':False}, "valid 255 max length name")) # 251 + 4 = 255
     # http://archive.oreilly.com/pub/post/the_worlds_longest_domain_name.html
     test_vectors.append(('www.thelongestdomainnameintheworldandthensomeandthensomemoreandmore.com', {'name':True, 'ipv4':False, 'ipv6':False}, "valid real world 71 char name"))
-    test_vectors.append(('3.141592653589793238462643383279502884197169399375105820974944592.com', {'name':True, 'ipv4':False, 'ipv6':False}, "valid real world 69 char name with all numbers except for the TLD"))
-    test_vectors.append(('l'*251+'.net', {'name':True, 'ipv4':False, 'ipv6':False}, "valid 255 max length name")) # 251 + 4 = 255
+    test_vectors.append(('3.141592653589793238462643383279502884197169399375105820974944592.com',   {'name':True, 'ipv4':False, 'ipv6':False}, "valid real world 69 char name with all numbers except for the TLD"))
 
-    # valid IPV4 that pass:
-    test_vectors.append(('127.0.0.1', {'name':False, 'ipv4':True, 'ipv6':False}, "valid use of ip"))
+    # valid ipv4 that only match the ipv4 regex:
+    test_vectors.append(('127.0.0.1',   {'name':False, 'ipv4':True, 'ipv6':False}, "valid use of ip"))
     test_vectors.append(('127.000.0.1', {'name':False, 'ipv4':True, 'ipv6':False}, "valid use of ip with leading 0s"))
 
-    # valid IPV6 that pass:
-    test_vectors.append(('0:0:0:0:0:0:0:1', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 loopback"))
-    test_vectors.append(('::1', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 loopback abbreviated"))
-    test_vectors.append(('::', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 0:0:0:0:0:0:0:0"))
-    test_vectors.append(('2001:4860:4860::8888', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 version of 8.8.8.8"))
+    # valid ipv6 that only match the ipv6 regex:
+    test_vectors.append(('0:0:0:0:0:0:0:1',                         {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 loopback"))
+    test_vectors.append(('::1',                                     {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 loopback abbreviated"))
+    test_vectors.append(('::',                                      {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 0:0:0:0:0:0:0:0"))
+    test_vectors.append(('2001:4860:4860::8888',                    {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 version of 8.8.8.8"))
     test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC:003F', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address")) # http://www.zytrax.com/tech/protocols/ipv6.html
-    test_vectors.append(('2001::0234:C1ab:0:A0:aabc:003F', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with single 0 dropped"))
+    test_vectors.append(('2001::0234:C1ab:0:A0:aabc:003F',          {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with single 0 dropped"))
+    test_vectors.append(('2001:db8:3:4::192.0.2.33',                {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
 
-    # valid ipv6 that are incorrectly rejected
-    test_vectors.append(('2001:db8:0:0:0:0:FFFF:192.168.0.5', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # http://www.zytrax.com/tech/protocols/ipv6.html
-    test_vectors.append(('2001:db8:0::0:0:FFFF:192.168.0.5', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address with single 0 dropped"))
+    # valid ipv6 that are incorrectly not matched by the ipv6 regex
+    # none known
 
-    # invalid ipv4 that are correctly rejected:
+    # invalid ipv4 that are correctly not matched by any regex:
     # ipv4 has no RFC spec to drop octets, it's a mess: http://superuser.com/questions/486788/why-does-pinging-192-168-072-only-2-dots-return-a-response-from-192-168-0-58
-    test_vectors.append(('127.1', {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of implied octet"))          # most web browsers are ok with missing octets
-    test_vectors.append(('127.0.1', {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of implied octet"))        # but this validation regex is not
-    test_vectors.append(('127.0.0.1.', {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 with invalid trailing dot"))
-    test_vectors.append(('127.000.0.1.', {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of ip with leading 0s and invalid trailing dot"))
+    test_vectors.append(('127.1',           {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of implied octet"))          # most web browsers are ok with missing octets
+    test_vectors.append(('127.0.1',         {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of implied octet"))        # but this validation regex is not
+    test_vectors.append(('127.0.0.1.',      {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 with invalid trailing dot"))
+    test_vectors.append(('127.000.0.1.',    {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of ip with leading 0s and invalid trailing dot"))
 
-    # invalid ipv6 that are correctly rejected
-    test_vectors.append(('2001::0234:C1ab::A0:aabc:003F', {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 one or more zeros entries can be omitted entirely but only once in an address"))
-    test_vectors.append(('2001:db8:0:::0:FFFF:192.168.0.5', {'name':False, 'ipv4':False, 'ipv6':False}, "invlaid IPV6 hybrid address with two 0's dropped"))
+    # invalid ipv6 that are correctly not matched by any regex
+    test_vectors.append(('2001::0234:C1ab::A0:aabc:003F',     {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 one or more zeros entries can be omitted entirely but only once in an address"))
+    test_vectors.append(('2001:db8:0:::0:FFFF:192.168.0.5',   {'name':False, 'ipv4':False, 'ipv6':False}, "invlaid IPV6 hybrid address with two 0's dropped"))
+    test_vectors.append(('2001:db8:0::0:0:FFFF:192.168.0.5',  {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 hybrid address with single 0 dropped and invalid 7 16bit valies before the ipv4 instead of 6"))
+    test_vectors.append(('2001:db8:0:0:0:0:FFFF:192.168.0.5', {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 hybrid address with invalid 7 16bit valies before the ipv4 instead of 6")) # http://www.zytrax.com/tech/protocols/ipv6.html
 
-    # invalid ipv4 that are correctly rejected:
-    test_vectors.append(('127.0000.0.1', {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
-    test_vectors.append(('0127.0.0.1', {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
-    test_vectors.append(('127.0.0.0.1', {'name':False, 'ipv4':False, 'ipv6':False}, "too many octs"))
+    # invalid ipv4 that are correctly not matched by any regex:
+    test_vectors.append(('127.0000.0.1',     {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
+    test_vectors.append(('0127.0.0.1',       {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
+    test_vectors.append(('127.0.0.0.1',      {'name':False, 'ipv4':False, 'ipv6':False}, "too many octs"))
     test_vectors.append(('127.111.111.1111', {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 too long"))
-    test_vectors.append(('527.0.0.1', {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
+    test_vectors.append(('527.0.0.1',        {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
 
-    # invalid names that are correctly rejected:
-    test_vectors.append(('lwn.net.', {'name':False, 'ipv4':False, 'ipv6':False}, "standard domain with invalid trailing dot")) #RFC952 implies this should not be valid...
-    test_vectors.append(('l-w-n.XN--1QQW23A.', {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes with invalid trailing dot"))
-    test_vectors.append(('l-w-n.n-e-t.', {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes with invalid trailing dot"))
-    test_vectors.append(('l wn.net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid space"))
-    test_vectors.append(('l	wn.net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid tab"))
-    test_vectors.append(('.lwn.net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid leading dot"))
-    test_vectors.append(('lwn..net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid double dots"))
-    test_vectors.append(('.lwn.net.', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain invalid trailing dot with invalid leading dot"))
-    test_vectors.append(('-lwn.net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid leading dash"))
-    test_vectors.append(('lwn-.net', {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid dash before a dot"))
-    test_vectors.append(('l-w-n.XN--1QQW23A-', {'name':False, 'ipv4':False, 'ipv6':False}, "use of dashes with invalid trailing dash"))
-    test_vectors.append(('l'*252+'.net', {'name':False, 'ipv4':False, 'ipv6':False}, "invalid >255 max length name")) # 252 + 4 = 256
-    test_vectors.append(('☃.net', {'name':False, 'ipv4':False, 'ipv6':False}, "invalid UTF8 char in hostname"))
-    test_vectors.append(('lwn.111', {'name':False, 'ipv4':False, 'ipv6':False}, "invalid all numeric TLD")) #otherwise it's not possible to distinguish 127.111.111.1111 from a domain
+    # invalid names that are correctly not matched by any regex:
+    test_vectors.append(('lwn.net.',            {'name':False, 'ipv4':False, 'ipv6':False}, "standard domain with invalid trailing dot")) #RFC952 implies this should not be valid...
+    test_vectors.append(('l-w-n.XN--1QQW23A.',  {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes with invalid trailing dot"))
+    test_vectors.append(('l-w-n.n-e-t.',        {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes with invalid trailing dot"))
+    test_vectors.append(('l wn.net',            {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid space"))
+    test_vectors.append(('l	wn.net',        {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid tab"))
+    test_vectors.append(('.lwn.net',            {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid leading dot"))
+    test_vectors.append(('lwn..net',            {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid double dots"))
+    test_vectors.append(('.lwn.net.',           {'name':False, 'ipv4':False, 'ipv6':False}, "std domain invalid trailing dot with invalid leading dot"))
+    test_vectors.append(('-lwn.net',            {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid leading dash"))
+    test_vectors.append(('lwn-.net',            {'name':False, 'ipv4':False, 'ipv6':False}, "std domain with invalid dash before a dot"))
+    test_vectors.append(('l-w-n.XN--1QQW23A-',  {'name':False, 'ipv4':False, 'ipv6':False}, "use of dashes with invalid trailing dash"))
+    test_vectors.append(('l'*252+'.net',        {'name':False, 'ipv4':False, 'ipv6':False}, "invalid >255 max length name")) # 252 + 4 = 256
+    test_vectors.append(('☃.net',               {'name':False, 'ipv4':False, 'ipv6':False}, "invalid UTF8 char in hostname"))
+    test_vectors.append(('lwn.111',             {'name':False, 'ipv4':False, 'ipv6':False}, "invalid all numeric TLD")) #otherwise it's not possible to distinguish 127.111.111.1111 from a domain
 
     return test_vectors
 
