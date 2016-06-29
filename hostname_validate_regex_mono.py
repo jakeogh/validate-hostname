@@ -113,10 +113,9 @@ def get_test_vectors():
     test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC:003F', {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address")) # http://www.zytrax.com/tech/protocols/ipv6.html
     test_vectors.append(('2001::0234:C1ab:0:A0:aabc:003F',          {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with single 0 dropped"))
     test_vectors.append(('2001:db8:3:4::192.0.2.33',                {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
-    test_vectors.append(('2001:db8::FFFF:192.168.0.1',              {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
 
     # valid ipv6 that are incorrectly not matched by the ipv6 regex
-    # none known
+    test_vectors.append(('2001:db8::FFFF:192.168.0.1',              {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
 
     # invalid ipv4 that are correctly not matched by any regex:
     # ipv4 has no RFC spec to drop octets, it's a mess: http://superuser.com/questions/486788/why-does-pinging-192-168-072-only-2-dots-return-a-response-from-192-168-0-58
