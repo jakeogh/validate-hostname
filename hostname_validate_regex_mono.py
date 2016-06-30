@@ -29,8 +29,11 @@ class HostnameValidator():
         #self.ipv4_constraint_regex = r"""(?=^.{1,14}$)^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
         self.ipv4_constraint_regex = r"""
                                         (?=^.{1,14}$)                           # max ipv4 length 3*4+3*1 = 15
-                                        ^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.)
-                                        {3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
+                                        ^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}
+                                        ([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
+
+        # http://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
+        self.ipv4_constraint_regex = r"""^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$""" # matches invalid ipv4 00.00.00.00 (leading 0's mean octal)
 
 
         # https://gist.github.com/syzdek/6086792
@@ -169,7 +172,6 @@ def get_test_vectors():
     test_vectors.append(('::',                                            {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 0:0:0:0:0:0:0:0"))
     test_vectors.append(('2001:4860:4860::8888',                          {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 version of 8.8.8.8"))
     test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC:003F',       {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address")) # http://www.zytrax.com/tech/protocols/ipv6.html
-    test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC::003F',       {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with extra :")) # http://www.zytrax.com/tech/protocols/ipv6.html
     test_vectors.append(('2001::0234:C1ab:0:A0:aabc:003F',                {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with single 0 dropped"))
     test_vectors.append(('2001:db8:3:4::192.0.2.33',                      {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
     test_vectors.append(('1:2:3:4:5:6:7:8',                               {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6"))
@@ -216,8 +218,10 @@ def get_test_vectors():
     test_vectors.append(('127.0.1',                                       {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of implied octet"))        # but this validation regex is not
     test_vectors.append(('127.0.0.1.',                                    {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 with invalid trailing dot"))
     test_vectors.append(('127.000.0.1.',                                  {'name':False, 'ipv4':False, 'ipv6':False}, "valid use of ip with leading 0s and invalid trailing dot"))
+    test_vectors.append(('1.1.1.1:25',                                    {'name':False, 'ipv4':False, 'ipv6':False}, "the port is not a part of an ipv4 address"))
 
     # invalid ipv6 that are correctly not matched by any regex
+    test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC::003F',      {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 standard address with invalid extra :")) # http://www.zytrax.com/tech/protocols/ipv6.html
     test_vectors.append(('2001::0234:C1ab::A0:aabc:003F',                 {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 one or more zeros entries can be omitted entirely but only once in an address"))
     test_vectors.append(('2404:6800::4003:c02::8a',                       {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 one or more zeros entries can be omitted entirely but only once in an address"))
     test_vectors.append(('2001:db8:0:::0:FFFF:192.168.0.5',               {'name':False, 'ipv4':False, 'ipv6':False}, "invlaid IPV6 hybrid address with two 0's dropped"))
@@ -226,6 +230,9 @@ def get_test_vectors():
     test_vectors.append((':: ',                                           {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 0:0:0:0:0:0:0:0 with invalid space at the end"))
     test_vectors.append(('0:	:0:0:0:0:0:1',                            {'name':False, 'ipv4':False, 'ipv6':False}, "IPV6 loopback with invalid TAB in it"))
 
+    # invalid ipv6 that are incorrectly matched by ipv6 (or any) regex:
+    test_vectors.append(('6666:123.123.123.123',                          {'name':False, 'ipv4':False, 'ipv6':False}, ""))
+
     # invalid ipv4 that are correctly not matched by any regex:
     test_vectors.append(('127.0000.0.1',                                  {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
     test_vectors.append(('0127.0.0.1',                                    {'name':False, 'ipv4':False, 'ipv6':False}, "too many leading 0s"))
@@ -233,6 +240,8 @@ def get_test_vectors():
     test_vectors.append(('127.111.111.1111',                              {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 too long"))
     test_vectors.append(('527.0.0.1',                                     {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
     test_vectors.append(('00.00.00.00',                                   {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
+    test_vectors.append(('3...3',                                         {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 multiple ."))
+
 
     # invalid names that are correctly not matched by any regex:
     test_vectors.append(('lwn.net.',                                      {'name':False, 'ipv4':False, 'ipv6':False}, "standard domain with invalid trailing dot")) #RFC952 implies this should not be valid...
@@ -407,9 +416,9 @@ def get_test_vectors():
     test_vectors.append(("fe80:0000:0000:0000:0204:61ff:254.157.241.086", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
     test_vectors.append(("::ffff:192.0.2.128", {'name':False, 'ipv4':False, 'ipv6':True}, "but this is OK, since there's a single digit"))
     test_vectors.append(("XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:1.2.3.4", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
-    test_vectors.append(("1111:2222:3333:4444:5555:6666:0.0.0.0", {'name':False, 'ipv4':False, 'ipv6':True}, ""))
-    test_vectors.append(("1111:2222:3333:4444:5555:6666:00.00.00.00", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
-    test_vectors.append(("1111:2222:3333:4444:5555:6666:000.000.000.000", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
+    test_vectors.append(("1111:2222:3333:4444:5555:6666:0.0.0.0", {'name':False, 'ipv4':False, 'ipv6':True}, "https://tools.ietf.org/html/rfc5954#section-3.2"))
+    test_vectors.append(("1111:2222:3333:4444:5555:6666:00.00.00.00", {'name':False, 'ipv4':False, 'ipv6':False}, "https://tools.ietf.org/html/rfc5954#section-3.2"))
+    test_vectors.append(("1111:2222:3333:4444:5555:6666:000.000.000.000", {'name':False, 'ipv4':False, 'ipv6':False}, "https://tools.ietf.org/html/rfc5954#section-3.2"))
     test_vectors.append(("1111:2222:3333:4444:5555:6666:256.256.256.256", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
     test_vectors.append(("2001:0DB8:0000:CD30:0000:0000:0000:0000/60", {'name':False, 'ipv4':False, 'ipv6':True}, "full, with prefix"))
     test_vectors.append(("2001:0DB8::CD30:0:0:0:0/60", {'name':False, 'ipv4':False, 'ipv6':True}, "compressed, with prefix"))
@@ -788,6 +797,10 @@ if __name__ == '__main__':
     address in dotted-decimal ("#.#.#.#") form.  The host SHOULD check
     the string syntactically for a dotted-decimal number before
     looking it up in the Domain Name System.
+
+    IPv6:
+        https://tools.ietf.org/html/rfc5954
+
     '''
 
     class bcolors:
