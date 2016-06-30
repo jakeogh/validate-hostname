@@ -22,13 +22,13 @@ class HostnameValidator():
 
         #self.ipv4_constraint_regex = r"""^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""                      # IP validation, fails on 127.1 http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
         self.ipv4_constraint_regex = r"""                                                                                                                 # add max ipv4 length 3*4+3*1 = 15
-                                    (?=^.{1,14}$)
-                                    ^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.)
-                                    {3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
+                                        (?=^.{1,14}$)
+                                        ^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.)
+                                        {3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
 
 
         # https://gist.github.com/syzdek/6086792
-        self.ipv6_constraint_regex = r"""(
+        self.ipv6_constraint_regex_old = r"""(
                                         ([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|          # 1:2:3:4:5:6:7:8
                                         ([0-9a-fA-F]{1,4}:){1,7}:|                         # 1::                              1:2:3:4:5:6:7::
                                         ([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|         # 1::8             1:2:3:4:5:6::8  1:2:3:4:5:6::8
@@ -45,8 +45,38 @@ class HostnameValidator():
                                         ([0-9a-fA-F]{1,4}:){1,4}:
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
                                         (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])           # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
-                                        )"""                                               #
+                                        )"""
 
+
+        IPV6SEG  = """[0-9a-fA-F]{1,4}"""
+        self.ipv6_constraint_regex = r"""(
+                                        (%s:){7,7}%s|                                      # 1:2:3:4:5:6:7:8
+                                        (%s:){1,7}:|                                       # 1::                              1:2:3:4:5:6:7::
+                                        (%s:){1,6}:%s|                                     # 1::8             1:2:3:4:5:6::8  1:2:3:4:5:6::8
+                                        (%s:){1,5}(:%s){1,2}|                              # 1::7:8           1:2:3:4:5::7:8  1:2:3:4:5::8
+                                        (%s:){1,4}(:%s){1,3}|                              # 1::6:7:8         1:2:3:4::6:7:8  1:2:3:4::8
+                                        (%s:){1,3}(:%s){1,4}|                              # 1::5:6:7:8       1:2:3::5:6:7:8  1:2:3::8
+                                        (%s:){1,2}(:%s){1,5}|                              # 1::4:5:6:7:8     1:2::4:5:6:7:8  1:2::8
+                                        %s:((:%s){1,6})|                                   # 1::3:4:5:6:7:8   1::3:4:5:6:7:8  1::8
+                                        :((:%s){1,7}|:)|                                   # ::2:3:4:5:6:7:8  ::2:3:4:5:6:7:8 ::8       ::
+
+                                        fe80:(:[0-9a-fA-F]{0,4}){0,4}%%[0-9a-zA-Z]{1,}|    # fe80::7:8%%eth0  fe80::7:8%%1    (link-local IPv6 addresses with zone index)
+
+                                        ::(ffff(:0{1,4}){0,1}:){0,1}
+                                        ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
+                                        (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|          # ::255.255.255.255   ::ffff:255.255.255.255  ::ffff:0:255.255.255.255  (IPv4-mapped IPv6 addresses and IPv4-translated addresses)
+
+                                        (%s:){1,4}:
+                                        ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
+                                        (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])           # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
+                                        )"""
+
+        self.ipv6_constraint_regex = self.ipv6_constraint_regex % (17*(IPV6SEG,))
+        print(self.ipv6_constraint_regex)
+        #quit(1)
+
+        # http://home.deds.nl/~aeron/regex/
+        #self.ipv6_constraint_regex = r"""^(((?=.*(::))(?!.*\3.+\3))\3?|[\dA-F]{1,4}:)([\dA-F]{1,4}(\3|:\b)|\2){5}(([\dA-F]{1,4}(\3|:\b|$)|\2){2}|(((2[0-4]|1\d|[1-9])?\d|25[0-5])\.?\b){4})\Z"""
 
         self.all_constraint_regex = self.name_constraint_regex + '|' + self.ipv4_constraint_regex + '|' + self.ipv6_constraint_regex
         self.ip_constraint_regex = self.ipv4_constraint_regex + '|' + self.ipv6_constraint_regex
