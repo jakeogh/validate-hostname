@@ -2,6 +2,11 @@
 # https://github.com/jakeogh/hostname-validate
 import re
 import pprint
+import shutil
+from collections import defaultdict
+
+def pprint_color(obj):
+    print(highlight(pformat(obj), PythonLexer(), Terminal256Formatter()))
 
 class HostnameValidator():
     def __init__(self):
@@ -19,30 +24,35 @@ class HostnameValidator():
                                             (?:[A-Za-z0-9][A-Za-z0-9-]*)
                                             (?:[.][A-Za-z0-9][A-Za-z0-9-]*)*(?:[.A-Za-z0-9])$"""
 
-
-        #self.ipv4_constraint_regex = r"""^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""                      # IP validation, fails on 127.1 http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
-        self.ipv4_constraint_regex = r"""                                                                                                                 # add max ipv4 length 3*4+3*1 = 15
-                                        (?=^.{1,14}$)
+        # http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
+        #self.ipv4_constraint_regex = r"""^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
+        #self.ipv4_constraint_regex = r"""(?=^.{1,14}$)^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
+        self.ipv4_constraint_regex = r"""
+                                        (?=^.{1,14}$)                           # max ipv4 length 3*4+3*1 = 15
                                         ^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.)
                                         {3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"""
 
 
         # https://gist.github.com/syzdek/6086792
-        self.ipv6_constraint_regex_old = r"""(
-                                        ([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|          # 1:2:3:4:5:6:7:8
-                                        ([0-9a-fA-F]{1,4}:){1,7}:|                         # 1::                              1:2:3:4:5:6:7::
-                                        ([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|         # 1::8             1:2:3:4:5:6::8  1:2:3:4:5:6::8
-                                        ([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|  # 1::7:8           1:2:3:4:5::7:8  1:2:3:4:5::8
-                                        ([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|  # 1::6:7:8         1:2:3:4::6:7:8  1:2:3:4::8
-                                        ([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|  # 1::5:6:7:8       1:2:3::5:6:7:8  1:2:3::8
-                                        ([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|  # 1::4:5:6:7:8     1:2::4:5:6:7:8  1:2::8
-                                        [0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|       # 1::3:4:5:6:7:8   1::3:4:5:6:7:8  1::8
-                                        :((:[0-9a-fA-F]{1,4}){1,7}|:)|                     # ::2:3:4:5:6:7:8  ::2:3:4:5:6:7:8 ::8       ::
-                                        fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|     # fe80::7:8%eth0   fe80::7:8%1     (link-local IPv6 addresses with zone index)
+        IPV6SEG  = """[0-9a-fA-F]{1,4}"""
+        self.ipv6_constraint_regex = r"""(
+                                        (%s:){7,7}%s|                                      # 1:2:3:4:5:6:7:8
+                                        (%s:){1,7}:|                                       # 1::                              1:2:3:4:5:6:7::
+                                        (%s:){1,6}:%s|                                     # 1::8             1:2:3:4:5:6::8  1:2:3:4:5:6::8
+                                        (%s:){1,5}(:%s){1,2}|                              # 1::7:8           1:2:3:4:5::7:8  1:2:3:4:5::8
+                                        (%s:){1,4}(:%s){1,3}|                              # 1::6:7:8         1:2:3:4::6:7:8  1:2:3:4::8
+                                        (%s:){1,3}(:%s){1,4}|                              # 1::5:6:7:8       1:2:3::5:6:7:8  1:2:3::8
+                                        (%s:){1,2}(:%s){1,5}|                              # 1::4:5:6:7:8     1:2::4:5:6:7:8  1:2::8
+                                        %s:((:%s){1,6})|                                   # 1::3:4:5:6:7:8   1::3:4:5:6:7:8  1::8
+                                        :((:%s){1,7}|:)|                                   # ::2:3:4:5:6:7:8  ::2:3:4:5:6:7:8 ::8       ::
+
+                                        fe80:(:[0-9a-fA-F]{0,4}){0,4}%%[0-9a-zA-Z]{1,}|    # fe80::7:8%%eth0  fe80::7:8%%1    (link-local IPv6 addresses with zone index)
+
                                         ::(ffff(:0{1,4}){0,1}:){0,1}
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
                                         (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|          # ::255.255.255.255   ::ffff:255.255.255.255  ::ffff:0:255.255.255.255  (IPv4-mapped IPv6 addresses and IPv4-translated addresses)
-                                        ([0-9a-fA-F]{1,4}:){1,4}:
+
+                                        (%s:){1,5}:
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
                                         (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])           # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
                                         )"""
@@ -66,14 +76,22 @@ class HostnameValidator():
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
                                         (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|          # ::255.255.255.255   ::ffff:255.255.255.255  ::ffff:0:255.255.255.255  (IPv4-mapped IPv6 addresses and IPv4-translated addresses)
 
-                                        (%s:){1,4}:
+
+                                        ((((%s:){1,6})(:){0,1})
                                         ((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}
-                                        (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])           # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
+                                        (25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))          # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
                                         )"""
 
+        #self.ipv6_constraint_regex_temp = r"""(([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""
+        #self.ipv6_constraint_regex_temp = r"""(([0-9a-fA-F]{1,4}:){1,5}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""
+        #self.ipv6_constraint_regex_temp = r"""((([0-9a-fA-F]{1,4}:){1,5}):((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""
+        self.ipv6_constraint_regex_temp = r"""(((([0-9a-fA-F]{1,4}:){1,6})(:){0,1})((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""
+
+        # 2001:db8:3:4::192.0.2.33  64:ff9b::192.0.2.33 (IPv4-Embedded IPv6 Address)
+
+
+
         self.ipv6_constraint_regex = self.ipv6_constraint_regex % (17*(IPV6SEG,))
-        print(self.ipv6_constraint_regex)
-        #quit(1)
 
         # http://home.deds.nl/~aeron/regex/
         #self.ipv6_constraint_regex = r"""^(((?=.*(::))(?!.*\3.+\3))\3?|[\dA-F]{1,4}:)([\dA-F]{1,4}(\3|:\b)|\2){5}(([\dA-F]{1,4}(\3|:\b|$)|\2){2}|(((2[0-4]|1\d|[1-9])?\d|25[0-5])\.?\b){4})\Z"""
@@ -123,8 +141,27 @@ def get_test_vectors():
     test_vectors.append(('3.141592653589793238462643383279502884197169399375105820974944592.com',   {'name':True, 'ipv4':False, 'ipv6':False}, "valid real world 69 char name with all numbers except for the TLD"))
 
     # valid ipv4 that only match the ipv4 regex:
+    test_vectors.append(('0.0.0.0',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('1.1.1.1',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('2.2.2.2',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('3.3.3.3',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('4.4.4.4',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('5.5.5.5',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('0.0.0.1',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('0.0.1.2',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('0.1.2.3',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('1.2.3.4',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('2.3.4.5',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('3.4.5.0',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('4.5.0.1',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('5.0.1.2',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+    test_vectors.append(('1.2.3.4',                                       {'name':False, 'ipv4':True, 'ipv6':False}, ""))
     test_vectors.append(('127.0.0.1',                                     {'name':False, 'ipv4':True, 'ipv6':False}, "valid use of ip"))
     test_vectors.append(('127.000.0.1',                                   {'name':False, 'ipv4':True, 'ipv6':False}, "valid use of ip with leading 0s"))
+    test_vectors.append(('55.55.55.55',                                   {'name':False, 'ipv4':True, 'ipv6':False}, ""))
+
+    # valid ipv4 that is incorrectly not matched by the ipv4 regex
+    test_vectors.append(('255.255.255.255',                               {'name':False, 'ipv4':True, 'ipv6':False}, ""))
 
     # valid ipv6 that only match the ipv6 regex:
     test_vectors.append(('0:0:0:0:0:0:0:1',                               {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 loopback"))
@@ -132,6 +169,7 @@ def get_test_vectors():
     test_vectors.append(('::',                                            {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 0:0:0:0:0:0:0:0"))
     test_vectors.append(('2001:4860:4860::8888',                          {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 version of 8.8.8.8"))
     test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC:003F',       {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address")) # http://www.zytrax.com/tech/protocols/ipv6.html
+    test_vectors.append(('2001:0000:0234:C1AB:0000:00A0:AABC::003F',       {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with extra :")) # http://www.zytrax.com/tech/protocols/ipv6.html
     test_vectors.append(('2001::0234:C1ab:0:A0:aabc:003F',                {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 standard address with single 0 dropped"))
     test_vectors.append(('2001:db8:3:4::192.0.2.33',                      {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6 hybrid address")) # https://gist.github.com/syzdek/6086792
     test_vectors.append(('1:2:3:4:5:6:7:8',                               {'name':False, 'ipv4':False, 'ipv6':True}, "IPV6"))
@@ -194,6 +232,7 @@ def get_test_vectors():
     test_vectors.append(('127.0.0.0.1',                                   {'name':False, 'ipv4':False, 'ipv6':False}, "too many octs"))
     test_vectors.append(('127.111.111.1111',                              {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 too long"))
     test_vectors.append(('527.0.0.1',                                     {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
+    test_vectors.append(('00.00.00.00',                                   {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 out of range >255.255.255.255"))
 
     # invalid names that are correctly not matched by any regex:
     test_vectors.append(('lwn.net.',                                      {'name':False, 'ipv4':False, 'ipv6':False}, "standard domain with invalid trailing dot")) #RFC952 implies this should not be valid...
@@ -368,6 +407,7 @@ def get_test_vectors():
     test_vectors.append(("fe80:0000:0000:0000:0204:61ff:254.157.241.086", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
     test_vectors.append(("::ffff:192.0.2.128", {'name':False, 'ipv4':False, 'ipv6':True}, "but this is OK, since there's a single digit"))
     test_vectors.append(("XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:1.2.3.4", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
+    test_vectors.append(("1111:2222:3333:4444:5555:6666:0.0.0.0", {'name':False, 'ipv4':False, 'ipv6':True}, ""))
     test_vectors.append(("1111:2222:3333:4444:5555:6666:00.00.00.00", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
     test_vectors.append(("1111:2222:3333:4444:5555:6666:000.000.000.000", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
     test_vectors.append(("1111:2222:3333:4444:5555:6666:256.256.256.256", {'name':False, 'ipv4':False, 'ipv6':False}, ""))
@@ -763,9 +803,16 @@ if __name__ == '__main__':
     validator = HostnameValidator()
     regex_dict = validator.get_compiled_regex_dict()
     test_vectors = get_test_vectors()
-
+    failure_dict = defaultdict(lambda: [0, [""]])
     for test_vector in test_vectors:
-        print("\ntest_vector:", test_vector[0], '#', test_vector[-1])
+        msg = "\ntest_vector: " + test_vector[0]
+        comment = test_vector[-1]
+        if comment:
+            msg = msg + '      #' + comment
+        #print("\ntest_vector:", test_vector[0], '#', test_vector[-1])
+        print(msg)
+        vector_length = len(test_vector[0])
+        pad = 50 - vector_length
         regex_test_answers = test_vector[1]
         for regex_name in regex_test_answers.keys():
             expected_result = regex_test_answers[regex_name]
@@ -775,15 +822,27 @@ if __name__ == '__main__':
                 validator.test_hostname(regex, test_vector[0])
             except AssertionError: # the test string was not matched by the regex
                 if expected_result == True: #if the test is supposed to work
-                    print(regex_name, "expected:", expected_result, "result: False" + bcolors.FAIL, " (FAIL)", bcolors.ENDC + "----ERROR----", "was expected to work, but did not.")
+                    msg = regex_name + " expected: " + str(expected_result) + "  result: False" + bcolors.FAIL + " (FAIL)" + bcolors.ENDC + " ----ERROR----" + " was expected to work, but did not."
+                    print(msg)
+                    msg_short = regex_name + " expected: " + str(expected_result) + " result: False (FAIL)" + " was expected to match, but did not."
+                    failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
+                    print(failure_dict[regex_name][0])
+                    failure_dict[regex_name][1].append(test_vector[0] + pad*" " + msg_short)
                 else:
                     print(regex_name, "expected:", expected_result, "result: False" + bcolors.OKGREEN, "(PASS)", bcolors.ENDC)
                     pass    #test was supposed to fail, and it did
             else:
                 if expected_result == False:    #if a test that was supposed to fail didnt
-                    print(regex_name, "expected:", expected_result, "result: True" + bcolors.FAIL, " (FAIL)", bcolors.ENDC + "----ERROR----", "was expected to fail, but did not.")
+                    msg = regex_name, " expected: ", str(expected_result), " result: True" + bcolors.FAIL, " (FAIL)", bcolors.ENDC + " ----ERROR----", " was expected to fail, but did not."
+                    print(msg)
+                    msg_short = regex_name + " expected: " + str(expected_result) + " result: True (FAIL)" + " was expected to not match, but did."
+                    failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
+                    print(failure_dict[regex_name][0])
+                    failure_dict[regex_name][1].append(test_vector[0] + pad*" " + msg_short)
                 else:
                     print(regex_name, "expected:", expected_result, "result: True" + bcolors.OKGREEN, "  (PASS)", bcolors.ENDC)
 
-
+    terminal_width = shutil.get_terminal_size((80, 20)).columns
+    print("\nResult Summary:")
+    pprint.pprint(failure_dict, width=terminal_width)
 
