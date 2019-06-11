@@ -8,9 +8,9 @@ from collections import defaultdict
 def pprint_color(obj):
     print(highlight(pformat(obj), PythonLexer(), Terminal256Formatter()))
 
-class HostnameValidator():
+class Validator():
     def __init__(self):
-        self.regex_names = ['domainname', 'hostname', 'label', 'ipv4', 'ipv6', 'all']
+        self.regex_names = ['domainname', 'hostname', 'cname', 'label', 'ipv4', 'ipv6', 'all']
         #self.domainname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"                              # permits all numeric tld's, accepts invalid ips, accepts "..", but gets everything(?) else right. From freenode@#postgresql:RhodiumToad
         #self.domainname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?!.*[.][.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"                  # prevent ".."
         #self.domainname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?!.*[.][.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*(?:[.A-Za-z0-9])$"  # prevent ".." and allow trailing .
@@ -23,9 +23,13 @@ class HostnameValidator():
                                             (?!.*[.][.])                                            # no repeating .
                                             (?:[A-Za-z0-9][A-Za-z0-9-]*)
                                             (?:[.][A-Za-z0-9][A-Za-z0-9-]*)*(?:[.A-Za-z0-9])$"""
+        # todo:
+        #   fcon~1000.projects.nitrc.org # http://fcon_1000.projects.nitrc.org/indi/enhanced/data/DUA.pdf
+        #   fcon_1000.projects.nitrc.org. 300 IN    CNAME   public.nitrc.org.
+
 
         '''
-        RFC952 + RFC1123 on host names:
+        RFC952 + RFC1123 on hostnames:
         1. A "name" (Net, Host, Gateway, or Domain name) is a:
             text string up to 255 characters drawn from the alphabet:
                 [A-Za-z]
@@ -42,11 +46,24 @@ class HostnameValidator():
         # http://stackoverflow.com/questions/2063213/regular-expression-for-validating-dns-label-host-name
         #self.hostname_constraint_regex = r"""^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{,63}(?<!-)$"""
         #self.hostname_constraint_regex = r"""^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{,255}(?<!-)$""" # accept up to 255 bytes
-        self.hostname_constraint_regex = r"""^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{1,255}(?<!-)$""" # do not accept empty labels
+        #self.hostname_constraint_regex = r"""^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{1,255}(?<!-)$""" # do not accept empty hostnames
+        self.hostname_constraint_regex = r"""^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{2,255}(?<!-)$""" # Single character names or nicknames are not allowed.
+
+        '''
+        https://www.ietf.org/rfc/rfc1034
+        DOMAIN NAMES - CONCEPTS AND FACILITIES
+        3.5. Preferred name syntax
+        The labels must follow the rules for ARPANET host names.  They must
+        start with a letter, end with a letter or digit, and have as interior
+        characters only letters, digits, and hyphen.  There are also some
+        restrictions on the length.  Labels must be 63 characters or less.
+        '''
+
 
         # http://stackoverflow.com/questions/2063213/regular-expression-for-validating-dns-label-host-name
         #self.label_constraint_regex = r"""^(?!-)[a-zA-Z0-9-]{1,63}(?<!-)$"""
-        self.label_constraint_regex = r"""^(?!-)[a-zA-Z0-9-]{1,255}(?<!-)$""" # accept up to 255 bytes
+        #self.label_constraint_regex = r"""^(?!-)[a-zA-Z0-9-]{1,255}(?<!-)$""" # accept up to 255 bytes
+        self.label_constraint_regex = r"""^(?!-)[a-zA-Z0-9-_]{1,255}(?<!-)$""" # accept _
 
 
         # http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
@@ -154,6 +171,16 @@ class HostnameValidator():
 def get_test_vectors():
     test_vectors = []
 
+    # valid labels that are not valid hostnames:
+    test_vectors.append(('1',                                             {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "single char labels are valid per RFC2181"))
+    test_vectors.append(('n_et',                                          {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with _"))
+    test_vectors.append(('_n_et',                                         {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with leading _"))
+    test_vectors.append(('__n_et',                                        {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with leading __"))
+    test_vectors.append(('-__n_et_',                                      {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with leading - and _"))
+    test_vectors.append(('-__n_et_-',                                     {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with trailing - and _"))
+    test_vectors.append(('-__n_et_-',                                     {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with trailing - and _"))
+    test_vectors.append(('fcon_1000',                                     {'domainname':False, 'hostname':False, 'label':True, 'ipv4':False, 'ipv6':False}, "label with _")) # http://fcon_1000.projects.nitrc.org/indi/enhanced/data/DUA.pdf
+
     # valid hostnames that only match the hostnamename regex:
     test_vectors.append(('net',                                           {'domainname':True, 'hostname':True, 'label':True, 'ipv4':False, 'ipv6':False}, "standard domain"))
 
@@ -167,21 +194,25 @@ def get_test_vectors():
     test_vectors.append(('n-e-t3',                                        {'domainname':True, 'hostname':True, 'label':True, 'ipv4':False, 'ipv6':False}, "standard hostname"))
     test_vectors.append((255*'a',                                         {'domainname':True, 'hostname':True, 'label':True, 'ipv4':False, 'ipv6':False}, "standard hostname max length 255 bytes"))
 
-    # invalid hostnames that match no regex:
-    test_vectors.append(('-net',                                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid leading -"))
-    test_vectors.append(('n_et',                                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid _"))
-    test_vectors.append(('net-',                                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid trailing -"))
-    test_vectors.append(('net--',                                         {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid trailing -"))
+    # invalid hostnames:
+    test_vectors.append(('n',                                             {'domainname':False, 'hostname':False, 'label':True,  'ipv4':False, 'ipv6':False}, "single char host names are not allowed per RFC952"))
+    test_vectors.append(('-net',                                          {'domainname':False, 'hostname':False, 'label':True,  'ipv4':False, 'ipv6':False}, "hostname with invalid leading -"))
+    test_vectors.append(('n_et',                                          {'domainname':False, 'hostname':False, 'label':True,  'ipv4':False, 'ipv6':False}, "hostname with invalid _"))
+    test_vectors.append(('net-',                                          {'domainname':False, 'hostname':False, 'label':True,  'ipv4':False, 'ipv6':False}, "hostname with invalid trailing -"))
+    test_vectors.append(('net--',                                         {'domainname':False, 'hostname':False, 'label':True,  'ipv4':False, 'ipv6':False}, "hostname with invalid trailing -"))
     test_vectors.append(('net.',                                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid trailing ."))
     test_vectors.append(('.net',                                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid leading ."))
+    test_vectors.append(('some.net',                                      {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "hostname with invalid ."))
     test_vectors.append((256*'A',                                         {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "invalid hostname > 255 bytes"))
 
 
     # valid domainnames that only match the domainname regex:
     test_vectors.append(('lwn.net',                                       {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain"))
-    test_vectors.append(('net',                                           {'domainname':True, 'hostname':True, 'label':True,  'ipv4':False, 'ipv6':False}, "standard domain without a ."))
+    test_vectors.append(('net',                                           {'domainname':True, 'hostname':True,  'label':True,  'ipv4':False, 'ipv6':False}, "standard domain without a ."))
     test_vectors.append(('3.net',                                         {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain starting with a number"))
     test_vectors.append(('LWN.NET',                                       {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain uppercase"))
+    test_vectors.append(('fcon_1000.projects.nitrc.org',                  {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with underscore in label"))
+
     test_vectors.append(('l-w-n.n-e-t',                                   {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
     test_vectors.append(('l-w-n.XN--1QQW23A',                             {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
     test_vectors.append(('l'*59+'.net',                                   {'domainname':True, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "valid (63 max) name length")) # 59 + 4 = 63
@@ -826,7 +857,25 @@ if __name__ == '__main__':
     "label" is the part of a domain name in between dots
     "hostname" is a special type of domain name which identifies Internet hosts
 
-    hostnames:
+
+    --------------------------------------------------------------------------
+    labels:
+    --------------------------------------------------------------------------
+    https://www.ietf.org/rfc/rfc1034 (November 1987)
+    DOMAIN NAMES - CONCEPTS AND FACILITIES
+    3.5. Preferred name syntax
+
+    The labels must follow the rules for ARPANET host names.  They must
+    start with a letter, end with a letter or digit, and have as interior
+    characters only letters, digits, and hyphen.  There are also some
+    restrictions on the length.  Labels must be 63 characters or less.
+
+
+
+    --------------------------------------------------------------------------
+    host names:
+    --------------------------------------------------------------------------
+
     RFC 952: https://tools.ietf.org/html/rfc952
     DOD INTERNET HOST TABLE SPECIFICATION
 
@@ -877,8 +926,65 @@ if __name__ == '__main__':
            have the dotted-decimal form #.#.#.#, since at least the
            highest-level component label will be alphabetic.
 
+    --------------------------------------------------------------------------
     domain names:
+    __________________________________________________________________________
+
+
+    https://www.ietf.org/rfc/rfc1034
+    https://tools.ietf.org/html/rfc1034
+    DOMAIN NAMES - CONCEPTS AND FACILITIES
+    3.5. Preferred name syntax
+
+    The DNS specifications attempt to be as general as possible in the rules
+    for constructing domain names.  The idea is that the name of any
+    existing object can be expressed as a domain name with minimal changes.
+    However, when assigning a domain name for an object, the prudent user
+    will select a name which satisfies both the rules of the domain system
+    and any existing rules for the object, whether these rules are published
+    or implied by existing programs.
+
+    For example, when naming a mail domain, the user should satisfy both the
+    rules of this memo and those in RFC-822.  When creating a new host name,
+    the old rules for HOSTS.TXT should be followed.  This avoids problems
+    when old software is converted to use domain names.
+
+    The following syntax will result in fewer problems with many
+    applications that use domain names (e.g., mail, TELNET).
+
+    <domain> ::= <subdomain> | " "
+
+    <subdomain> ::= <label> | <subdomain> "." <label>
+
+    <label> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
+
+    <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+
+    <let-dig-hyp> ::= <let-dig> | "-"
+
+    <let-dig> ::= <letter> | <digit>
+
+    <letter> ::= any one of the 52 alphabetic characters A through Z in
+    upper case and a through z in lower case
+
+    <digit> ::= any one of the ten digits 0 through 9
+
+    Note that while upper and lower case letters are allowed in domain
+    names, no significance is attached to the case.  That is, two names with
+    the same spelling but different case are to be treated as if identical.
+
+    The labels must follow the rules for ARPANET host names.  They must
+    start with a letter, end with a letter or digit, and have as interior
+    characters only letters, digits, and hyphen.  There are also some
+    restrictions on the length.  Labels must be 63 characters or less.
+
+    For example, the following strings identify hosts in the Internet:
+
+    A.ISI.EDU  XX.LCS.MIT.EDU  SRI-NIC.ARPA
+
+
     http://www.ietf.org/rfc/rfc2181
+    https://tools.ietf.org/html/rfc2181
     Clarifications to the DNS Specification
     Name syntax
 
@@ -907,8 +1013,18 @@ if __name__ == '__main__':
     load, a primary zone containing labels that might be considered
     questionable, however this should not happen by default.
 
+    Note however, that the various applications that make use of DNS data
+    can have restrictions imposed on what particular values are
+    acceptable in their environment.  For example, that any binary label
+    can have an MX record does not imply that any binary name can be used
+    as the host part of an e-mail address.  Clients of the DNS can impose
+    whatever restrictions are appropriate to their circumstances on the
+    values they use as keys for DNS lookup requests, and on the values
+    returned by the DNS.  If the client has such restrictions, it is
+    solely responsible for validating the data from the DNS to ensure
+    that it conforms before it makes any use of that data.
 
-    RFC 1123: https://tools.ietf.org/html/rfc1123#page-79
+    https://tools.ietf.org/html/rfc1123#page-79
     Requirements for Internet Hosts -- Application and Support
 
     6.1.3.5  Extensibility
@@ -925,6 +1041,7 @@ if __name__ == '__main__':
              was defined in RFC-952 [DNS:4].
 
     # https://www.ietf.org/rfc/rfc1035
+    # https://tools.ietf.org/html/rfc1035
 
 
     IPv4:
@@ -945,7 +1062,7 @@ if __name__ == '__main__':
         BOLD = '\033[1m'
         UNDERLINE = '\033[4m'
 
-    validator = HostnameValidator()
+    validator = Validator()
     regex_dict = validator.get_compiled_regex_dict()
     test_vectors = get_test_vectors()
     failure_dict = defaultdict(lambda: [0, []])
@@ -957,9 +1074,9 @@ if __name__ == '__main__':
         #print("\ntest_vector:", test_vector[0], '#', test_vector[-1])
         print(msg)
         vector_length = len(test_vector[0])
-        pad = 50 - vector_length
+        pad = 45 - vector_length
         regex_test_answers = test_vector[1]
-        for regex_name in regex_test_answers.keys():
+        for regex_name in sorted(regex_test_answers.keys()):
             expected_result = regex_test_answers[regex_name]
             regex = regex_dict[regex_name]
 
@@ -969,7 +1086,9 @@ if __name__ == '__main__':
                 if expected_result == True: #if the test is supposed to work
                     msg = str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + "  result: False" + bcolors.FAIL + " (FAIL)" + bcolors.ENDC + " ----ERROR----" + " was expected to work, but did not."
                     print(msg)
-                    msg_short = str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + " result: False (FAIL)" + " was expected to match, but did not."
+                    msg_short = str('[' + regex_name + ']').rjust(14) + "   expected: " + str(expected_result).ljust(5) + " result: False (FAIL)" + " was expected to match, but did not."
+                    if comment:
+                        msg_short = msg_short + '    # ' + comment
                     failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
                     failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad*" " + msg_short)
                 else:
@@ -979,7 +1098,9 @@ if __name__ == '__main__':
                 if expected_result == False:    #if a test that was supposed to fail didnt
                     msg = str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + " result: True  " + bcolors.FAIL + " (FAIL)" + bcolors.ENDC + " ----ERROR----" + " was expected to fail, but did not."
                     print(msg)
-                    msg_short = str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + " result: True  (FAIL)" + " was expected to not match, but did."
+                    msg_short = str('[' + regex_name + ']').rjust(14) + "   expected: " + str(expected_result).ljust(5) + " result: True  (FAIL)" + " was expected to not match, but did."
+                    if comment:
+                        msg_short = msg_short + '    # ' + comment
                     failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
                     failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad*" " + msg_short)
                 else:
