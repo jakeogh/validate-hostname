@@ -1090,7 +1090,7 @@ if __name__ == '__main__':
                     if comment:
                         msg_short = msg_short + '    # ' + comment
                     failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
-                    failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad*" " + msg_short)
+                    failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad * " " + msg_short)
                 else:
                     print(str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + " result: False " + bcolors.OKGREEN + " (PASS)" + bcolors.ENDC)
                     pass    #test was supposed to fail, and it did
@@ -1102,7 +1102,7 @@ if __name__ == '__main__':
                     if comment:
                         msg_short = msg_short + '    # ' + comment
                     failure_dict[regex_name][0] = failure_dict[regex_name][0] + 1
-                    failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad*" " + msg_short)
+                    failure_dict[regex_name][1].append("'" + test_vector[0] + "'" + pad * " " + msg_short)
                 else:
                     print(str('[' + regex_name + ']').ljust(14) + " expected: " + str(expected_result).ljust(5) + " result: True " + bcolors.OKGREEN + "  (PASS)" + bcolors.ENDC)
 
