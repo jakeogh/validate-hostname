@@ -6,11 +6,11 @@ import shutil
 from collections import defaultdict
 
 
-def pprint_color(obj):
-    print(highlight(pformat(obj), PythonLexer(), Terminal256Formatter()))
+#def pprint_color(obj):
+#    print(highlight(pformat(obj), PythonLexer(), Terminal256Formatter()))
 
 
-class Validator():
+class RegexValidator():
     def __init__(self):
         #self.regex_names = ['domainname', 'hostname', 'cname', 'label', 'ipv4', 'ipv6', 'all']
         self.regex_names = ['domainname', 'hostname', 'label', 'ipv4', 'ipv6', 'all']
@@ -217,7 +217,8 @@ def get_test_vectors():
     test_vectors.append(('net',                                             {'domainname':True,  'hostname':True,  'label':True,  'ipv4':False, 'ipv6':False}, "standard domain without a ."))
     test_vectors.append(('3.net',                                           {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain starting with a number"))
     test_vectors.append(('LWN.NET',                                         {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain uppercase"))
-    test_vectors.append(('fcon_1000.projects.nitrc.org',                    {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with underscore in label"))
+    test_vectors.append(('fcon_1000.projects.nitrc.org',                    {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with underscore in label, not valid hostname"))
+    test_vectors.append(('_jabber._tcp.gmail.com',                          {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with underscore in label, not valid hostname"))
 
     test_vectors.append(('l-w-n.n-e-t',                                     {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
     test_vectors.append(('l-w-n.XN--1QQW23A',                               {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "valid use of dashes"))
@@ -242,7 +243,7 @@ def get_test_vectors():
     test_vectors.append(('l'*252+'.net',                                    {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "invalid >255 max length name")) # 252 + 4 = 256
     test_vectors.append(('☃.net',                                           {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "invalid UTF8 char in domainname"))
     test_vectors.append(('lwn.111',                                         {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "invalid all numeric TLD")) #otherwise it's not possible to distinguish 127.111.111.1111 from a domain
-    test_vectors.append(('fcon_1000.pro.test.org',                          {'domainname':False, 'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with valid underscore")) # http://stackoverflow.com/questions/2180465/can-domain-name-subdomains-have-an-underscore-in-it
+    test_vectors.append(('fcon_1000.pro.test.org',                          {'domainname':True,  'hostname':False, 'label':False, 'ipv4':False, 'ipv6':False}, "standard domain with valid underscore")) # http://stackoverflow.com/questions/2180465/can-domain-name-subdomains-have-an-underscore-in-it
 
     # valid ipv4 that only match the ipv4 regex:
     test_vectors.append(('0.0.0.0',                                         {'domainname':False, 'hostname':False, 'label':False, 'ipv4':True,  'ipv6':False}, ""))
@@ -1067,7 +1068,7 @@ if __name__ == '__main__':
         BOLD = '\033[1m'
         UNDERLINE = '\033[4m'
 
-    validator = Validator()
+    validator = RegexValidator()
     regex_dict = validator.get_compiled_regex_dict()
     test_vectors = get_test_vectors()
     failure_dict = defaultdict(lambda: [0, []])

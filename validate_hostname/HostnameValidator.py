@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 
+import sys
 import re
 from validate_hostname_test_vectors import get_test_vectors
+import click
+
+
+def eprint(*args, **kwargs):
+    if 'file' in kwargs.keys():
+        kwargs.pop('file')
+    print(*args, file=sys.stderr, **kwargs)
+
+
+try:
+    from icecream import ic  # https://github.com/gruns/icecream
+except ImportError:
+    ic = eprint
 
 
 class HostnameValidator():
@@ -37,7 +51,15 @@ def test_hostname(regex, name):
     return True
 
 
-if __name__ == '__main__':
+@click.command()
+@click.option('--verbose', is_flag=True)
+@click.option('--debug', is_flag=True)
+@click.option('--ipython', is_flag=True)
+def cli(verbose: bool,
+        debug: bool,
+        ipython: bool,
+        ):
+
     '''
     RFC 952: https://tools.ietf.org/html/rfc952
 
@@ -92,5 +114,5 @@ if __name__ == '__main__':
             else:
                 print("test: (PASS)", item)
 
-
-
+if __name__ == '__main__':
+    cli()

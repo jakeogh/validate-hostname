@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+
+if __name__ == '__main__':
+    import sys
+    with open("ipv6tests", 'r') as fh:
+        tests = fh.read().splitlines()
+
+    for test_to_convert in tests:
+#        print("test_to_convert:", test_to_convert)
+        comment = ''.join(test_to_convert.split('#')[1:]).strip()
+   #     if comment:
+ #           print("comment:", comment)
+
+        expression = ''.join(''.join(test_to_convert.split('(')[1:]).split(');')[0:-1])
+  #      print("experssion:", expression)
+
+        expected_result = expression.split(',')[0]
+        if expected_result == '1':
+            expected_result = True
+        elif expected_result == '!1':
+            expected_result = False
+        else:
+            print("bug")
+            quit(1)
+   #     print("expected_result:", expected_result)
+
+        test = expression.split(',')[1]
+   #     print("test:", test)
+
+        #      test_vectors.append(('127.111.111.1111',                              {'name':False, 'ipv4':False, 'ipv6':False}, "ipv4 too long"))
+        #      test_vectors.append(("a:b:c:d:e:f:0::", {'name':False, 'ipv4':False, 'ipv6':True}, "")
+
+        print("    test_vectors.append((" + test + ', ' + '''{'name':False, 'ipv4':False, 'ipv6':''' + str(expected_result) + '}, \"' + comment + '\"))')
