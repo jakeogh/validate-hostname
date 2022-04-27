@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import re
-#import sys
 from typing import Union
 
 import click
-#from asserttool import ic
+# from asserttool import ic
 from clicktool import click_add_options
 from clicktool import click_global_options
-#from eprint import eprint
+
+# from eprint import eprint
 from validate_hostname_test_vectors import get_test_vectors
 
 
