@@ -1,42 +1,38 @@
 #!/usr/bin/env python3
 
-import sys
 import re
-from validate_hostname_test_vectors import get_test_vectors
+#import sys
+from typing import Union
+
 import click
+#from asserttool import ic
+from clicktool import click_add_options
+from clicktool import click_global_options
+#from eprint import eprint
+from validate_hostname_test_vectors import get_test_vectors
 
 
-def eprint(*args, **kwargs):
-    if 'file' in kwargs.keys():
-        kwargs.pop('file')
-    print(*args, file=sys.stderr, **kwargs)
-
-
-try:
-    from icecream import ic  # https://github.com/gruns/icecream
-except ImportError:
-    ic = eprint
-
-
-class HostnameValidator():
+class HostnameValidator:
     def __init__(self):
         # permits all numeric tld's, accepts invalid ips, accepts "..", but gets everything(?) else right. From freenode@#postgresql:RhodiumToad
-        #self.hostname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"
+        # self.hostname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"
 
         # prevent ".."
-        #self.hostname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?!.*[.][.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"
+        # self.hostname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?!.*[.][.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*$"
 
         # prevent ".." and allow trailing .
         self.hostname_constraint_regex = "^(?!.*-$)(?!.*-[.])(?!.*[.][.])(?:[A-Za-z0-9][A-Za-z0-9-]*)(?:[.][A-Za-z0-9][A-Za-z0-9-]*)*(?:[.A-Za-z0-9])$"  # prevent ".." and allow trailing .
 
         # IP validation, fails on 127.1 http://stackoverflow.com/questions/106179/regular-expression-to-match-dns-hostname-or-ip-address
         self.ip_constraint_regex = "^(([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))\.){3}([01]?[0-9]?[0-9]|2([0-4][0-9]|5[0-5]))$"
-        self.constraint_regex = self.hostname_constraint_regex + '|' + self.ip_constraint_regex
+        self.constraint_regex = (
+            self.hostname_constraint_regex + "|" + self.ip_constraint_regex
+        )
 
     def get_sqlalchemy_constraint(self):
-        self.hostname_constraint = "name ~ \'" + self.hostname_constraint_regex + "\'"
-        self.ip_constraint = "name ~ \'" + self.ip_constraint_regex + "\'"
-        self.constraint = "name ~ \'" + self.constraint_regex + "\'"
+        self.hostname_constraint = "name ~ '" + self.hostname_constraint_regex + "'"
+        self.ip_constraint = "name ~ '" + self.ip_constraint_regex + "'"
+        self.constraint = "name ~ '" + self.constraint_regex + "'"
         return self.constraint
 
     def get_compiled_regex(self):
@@ -52,15 +48,19 @@ def test_hostname(regex, name):
 
 
 @click.command()
-@click.option('--verbose', is_flag=True)
-@click.option('--debug', is_flag=True)
-@click.option('--ipython', is_flag=True)
-def cli(verbose: bool,
-        debug: bool,
-        ipython: bool,
-        ):
+@click.option("--ipython", is_flag=True)
+@click_add_options(click_global_options)
+@click.pass_context
+def cli(
+    ctx,
+    *,
+    verbose: Union[bool, int, float],
+    verbose_inf: bool,
+    dict_input: bool,
+    ipython: bool,
+):
 
-    '''
+    """
     RFC 952: https://tools.ietf.org/html/rfc952
 
     1. A "name" (Net, Host, Gateway, or Domain name) is a text string up
@@ -89,30 +89,37 @@ def cli(verbose: bool,
     address in dotted-decimal ("#.#.#.#") form.  The host SHOULD check
     the string syntactically for a dotted-decimal number before
     looking it up in the Domain Name System.
-    '''
+    """
 
     validator = HostnameValidator()
-#   print(validator.constraint_regex)
     regex = validator.get_compiled_regex()
-#   print(regex)
     test_vectors = get_test_vectors()
-#   print(test_vectors)
 
     for item in test_vectors:
-#        print("test:", item, end=' ')
         try:
             test_hostname(regex, item[0])
         except AssertionError:
-            if item[1] == True: #if the test is supposed to work
-                print("test: (FAIL) ----ERROR----", item, "was expected to work, but did not.")
+            if item[1] == True:  # if the test is supposed to work
+                print(
+                    "test: (FAIL) ----ERROR----",
+                    item,
+                    "was expected to work, but did not.",
+                )
             else:
                 print("test: (PASS)", item)
-                pass    #test was supposed to fail, and it did
+                pass  # test was supposed to fail, and it did
         else:
-            if item[1] == False:    #if a test that was supposed to fail didnt
-                print("test: (FAIL) ----ERROR----", item, "was expected to fail, but did not.")
+            if item[1] == False:  # if a test that was supposed to fail didnt
+                print(
+                    "test: (FAIL) ----ERROR----",
+                    item,
+                    "was expected to fail, but did not.",
+                )
             else:
                 print("test: (PASS)", item)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    # pylint: disable=E1120
+    # pylint: disable=E1125
     cli()
