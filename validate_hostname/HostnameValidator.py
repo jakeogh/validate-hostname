@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import re
-from typing import Union
 
 import click
 # from asserttool import ic
@@ -54,9 +53,9 @@ def test_hostname(regex, name):
 def cli(
     ctx,
     *,
-    verbose: Union[bool, int, float],
+    verbose: bool | int | float,
     verbose_inf: bool,
-    dict_input: bool,
+    dict_output: bool,
     ipython: bool,
 ):
 
