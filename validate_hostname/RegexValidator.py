@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # https://github.com/jakeogh/domainname-validate
+from __future__ import annotations
 import re
 import pprint
 import shutil
